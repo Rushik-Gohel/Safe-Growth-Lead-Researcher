@@ -43,9 +43,19 @@ class Settings(BaseSettings):
     max_input_length: int = Field(default=1000, description="Maximum input length")
     enable_guardrails: bool = Field(default=True, description="Enable security guardrails")
     
-    # Performance
+    # Performance & Caching
     enable_caching: bool = Field(default=True, description="Enable response caching")
-    cache_ttl: int = Field(default=3600, description="Cache TTL in seconds")
+    cache_ttl: int = Field(default=3600, description="Default cache TTL in seconds (1 hour)")
+    cache_max_size: int = Field(default=1000, description="Maximum cache entries")
+    
+    # Cache TTL overrides for specific operations
+    workflow_cache_ttl: int = Field(default=3600, description="Workflow result cache TTL (1 hour)")
+    linkedin_cache_ttl: int = Field(default=3600, description="LinkedIn profile cache TTL (1 hour)")
+    search_cache_ttl: int = Field(default=1800, description="Search results cache TTL (30 minutes)")
+    company_news_cache_ttl: int = Field(default=3600, description="Company news cache TTL (1 hour)")
+    industry_trends_cache_ttl: int = Field(default=7200, description="Industry trends cache TTL (2 hours)")
+    
+    # Retry settings
     max_retries: int = Field(default=3, description="Maximum retry attempts")
     retry_delay: int = Field(default=2, description="Initial retry delay in seconds")
     

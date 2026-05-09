@@ -8,6 +8,7 @@ import asyncio
 
 from ..core.config import settings
 from ..core.retry_handler import with_retry
+from ..core.cache import cached, get_cache_stats
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,7 @@ class SearchTools:
             logger.error(f"Failed to initialize DuckDuckGo client: {str(e)}")
             self.ddgs_client = None
     
+    @cached(ttl=settings.search_cache_ttl, key_prefix="tavily")
     @with_retry(max_attempts=2, initial_delay=1)
     def _search_tavily(
         self,
@@ -123,6 +125,7 @@ class SearchTools:
             logger.error(f"Tavily search failed: {str(e)}")
             raise
     
+    @cached(ttl=settings.search_cache_ttl, key_prefix="ddg")
     @with_retry(max_attempts=2, initial_delay=1)
     def _search_duckduckgo(
         self,
@@ -219,10 +222,28 @@ class SearchTools:
         """
         if MOCK_MODE:
             logger.info(f"MOCK MODE: Generating mock company news for {company_name}")
-            return self._generate_mock_company_news(company_name, max_results)
+            return self._generate_mock_company_news_cached(company_name, max_results)
         
+        return self._search_company_news_cached(company_name, max_results)
+    
+    @cached(ttl=settings.company_news_cache_ttl, key_prefix="company_news")
+    def _search_company_news_cached(
+        self,
+        company_name: str,
+        max_results: int = 5
+    ) -> List[SearchResult]:
+        """Internal cached method for company news search."""
         query = f"{company_name} news recent announcements"
         return self.search(query, max_results)
+    
+    @cached(ttl=settings.company_news_cache_ttl, key_prefix="company_news_mock")
+    def _generate_mock_company_news_cached(
+        self,
+        company_name: str,
+        max_results: int
+    ) -> List[SearchResult]:
+        """Internal cached method for mock company news."""
+        return self._generate_mock_company_news(company_name, max_results)
     
     def search_industry_trends(
         self,
@@ -241,10 +262,28 @@ class SearchTools:
         """
         if MOCK_MODE:
             logger.info(f"MOCK MODE: Generating mock industry trends for {industry}")
-            return self._generate_mock_industry_trends(industry, max_results)
+            return self._generate_mock_industry_trends_cached(industry, max_results)
         
+        return self._search_industry_trends_cached(industry, max_results)
+    
+    @cached(ttl=settings.industry_trends_cache_ttl, key_prefix="industry_trends")
+    def _search_industry_trends_cached(
+        self,
+        industry: str,
+        max_results: int = 3
+    ) -> List[SearchResult]:
+        """Internal cached method for industry trends search."""
         query = f"{industry} industry trends 2024"
         return self.search(query, max_results)
+    
+    @cached(ttl=settings.industry_trends_cache_ttl, key_prefix="industry_trends_mock")
+    def _generate_mock_industry_trends_cached(
+        self,
+        industry: str,
+        max_results: int
+    ) -> List[SearchResult]:
+        """Internal cached method for mock industry trends."""
+        return self._generate_mock_industry_trends(industry, max_results)
     
     def _generate_mock_company_news(self, company_name: str, max_results: int) -> List[SearchResult]:
         """Generate mock company news for testing."""
@@ -314,6 +353,7 @@ class SearchTools:
         ]
         return mock_trends[:max_results]
     
+    @cached(ttl=settings.cache_ttl, key_prefix="person_info")
     def search_person_info(
         self,
         person_name: str,

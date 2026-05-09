@@ -10,6 +10,7 @@ from ..agent.workflow import lead_research_agent
 from ..core.rate_limiter import token_governor
 from ..security.guardrails import guardrails
 from ..core.config import settings
+from ..core.cache import get_cache_stats, clear_cache
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,16 @@ class MetricsResponse(BaseModel):
     is_near_limit: bool
 
 
+class CacheStatsResponse(BaseModel):
+    """Cache statistics response."""
+    
+    hits: int
+    misses: int
+    evictions: int
+    size: int
+    hit_rate: str
+
+
 class HealthResponse(BaseModel):
     """Health check response."""
     
@@ -140,6 +151,27 @@ async def get_metrics():
     )
 
 
+@app.get("/cache/stats", response_model=CacheStatsResponse, tags=["Cache"])
+async def get_cache_statistics():
+    """Get cache statistics."""
+    stats = get_cache_stats()
+    
+    return CacheStatsResponse(
+        hits=stats["hits"],
+        misses=stats["misses"],
+        evictions=stats["evictions"],
+        size=stats["size"],
+        hit_rate=stats["hit_rate"]
+    )
+
+
+@app.post("/cache/clear", tags=["Cache"])
+async def clear_cache_endpoint():
+    """Clear all cache entries."""
+    clear_cache()
+    return {"message": "Cache cleared successfully"}
+
+
 @app.post("/validate", response_model=ValidationResponse, tags=["Security"])
 async def validate_input(request: ValidationRequest):
     """Validate input for security threats."""
@@ -178,9 +210,24 @@ async def research_lead(request: ResearchRequest):
                 }
             )
         
+        estimated_tokens = max(250, min(1000, len(request.input) * 4))
+        can_proceed, wait_time = token_governor.check_rate_limit(
+            estimated_tokens=estimated_tokens
+        )
+        
+        if not can_proceed:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "error": "Rate limit exceeded",
+                    "reason": f"Please wait {wait_time:.1f} seconds before trying again."
+                }
+            )
+        
         # Run agent workflow
         logger.info(f"Starting research for: {request.input[:50]}...")
         result = lead_research_agent.run(request.input)
+        token_governor.record_request(tokens_used=estimated_tokens)
         
         # Build response
         response = ResearchResponse(

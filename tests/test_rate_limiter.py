@@ -5,6 +5,11 @@ import time
 from src.core.rate_limiter import TokenGovernor, RateLimitMetrics
 
 
+def estimate_input_tokens(user_input: str) -> int:
+    """Mirror the input token estimate used by UI/API research entrypoints."""
+    return max(250, min(1000, len(user_input) * 4))
+
+
 @pytest.fixture
 def governor():
     """Create token governor for testing."""
@@ -208,6 +213,40 @@ class TestRateLimitMetrics:
         metrics.current_rpm = 5
         metrics.current_tpm = 850000
         assert metrics.is_near_limit is True
+
+
+class TestResearchInputRateLimitEstimate:
+    """Test input rate limiting token estimation."""
+
+    def test_estimate_input_tokens_has_minimum_floor(self):
+        """Small inputs should still reserve a minimum token budget."""
+        assert estimate_input_tokens("Acme") == 250
+
+    def test_estimate_input_tokens_scales_with_input_length(self):
+        """Medium inputs should scale with input size."""
+        assert estimate_input_tokens("a" * 100) == 400
+
+    def test_estimate_input_tokens_has_maximum_cap(self):
+        """Very large inputs should be capped."""
+        assert estimate_input_tokens("a" * 1000) == 1000
+
+    def test_input_rate_limit_blocks_after_reserved_capacity_is_used(self):
+        """Research input should be blocked once reserved TPM capacity is exhausted."""
+        governor = TokenGovernor(rpm_limit=10, tpm_limit=1000, window_seconds=60)
+
+        reserved_tokens = estimate_input_tokens("Acme")
+        assert reserved_tokens == 250
+
+        for _ in range(4):
+            can_proceed, wait_time = governor.check_rate_limit(estimated_tokens=reserved_tokens)
+            assert can_proceed is True
+            assert wait_time is None
+            governor.record_request(tokens_used=reserved_tokens)
+
+        can_proceed, wait_time = governor.check_rate_limit(estimated_tokens=reserved_tokens)
+        assert can_proceed is False
+        assert wait_time is not None
+        assert wait_time > 0
 
 
 if __name__ == "__main__":

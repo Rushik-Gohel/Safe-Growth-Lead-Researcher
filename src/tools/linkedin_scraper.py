@@ -5,12 +5,12 @@ import time
 import logging
 from typing import Optional, Dict, Any
 from dataclasses import dataclass, asdict
-from functools import lru_cache
 import requests
 from bs4 import BeautifulSoup
 
 from ..core.config import settings
 from ..core.retry_handler import with_retry
+from ..core.cache import cached
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +208,7 @@ class LinkedInScraper:
         
         return profile
     
-    @lru_cache(maxsize=100)
+    @cached(ttl=settings.linkedin_cache_ttl, key_prefix="linkedin")
     def scrape_profile(self, url: str) -> LinkedInProfile:
         """
         Scrape LinkedIn profile with caching.

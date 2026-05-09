@@ -7,7 +7,7 @@ An AI-powered lead research agent that takes a LinkedIn URL or company name, res
 - **🔍 Intelligent Research**: Scrapes LinkedIn profiles and searches for company news and industry trends
 - **📧 Personalized Emails**: Generates customized outreach emails based on research findings
 - **🛡️ Security Guardrails**: Detects and blocks prompt injection attempts
-- **⚡ Rate Limiting**: Token governor with RPM/TPM tracking and sliding window algorithm
+- **⚡ Rate Limiting**: Token governor with RPM/TPM tracking, sliding window algorithm, and input-level research request throttling
 - **🔄 Error Handling**: Exponential backoff with automatic fallback to secondary sources
 - **📊 Real-time Metrics**: Live dashboard showing performance and rate limit status
 - **🎯 Streaming Output**: Token-by-token email generation with TTFT tracking
@@ -109,8 +109,9 @@ docker-compose up -d
 1. Open http://localhost:8501
 2. Enter a LinkedIn URL or company name
 3. Click "Start Research"
-4. View real-time metrics in the sidebar
-5. Get personalized email draft
+4. If the input rate limit is reached, wait for the displayed retry window before submitting again
+5. View real-time metrics in the sidebar
+6. Get personalized email draft
 
 ### API Endpoints
 
@@ -120,6 +121,14 @@ curl -X POST "http://localhost:8000/research" \
   -H "Content-Type: application/json" \
   -d '{"input": "https://linkedin.com/in/john-doe"}'
 ```
+
+**Rate limit behavior for research input:**
+- The UI and `/research` API now apply rate limiting before the workflow starts
+- Each research submission reserves an estimated token budget based on input size:
+  - `max(250, min(1000, len(input) * 4))`
+- When blocked:
+  - Streamlit shows a user-facing wait-time message
+  - FastAPI returns `HTTP 429 Too Many Requests`
 
 **Get Metrics:**
 ```bash
@@ -154,12 +163,13 @@ The sidebar displays real-time metrics:
 - **TTFT**: Time to first token
 - **Total Time**: Complete execution time
 - **Total Requests/Tokens**: Cumulative statistics
+- **Requests Blocked**: Number of submissions blocked by rate limiting
 
 ## 🔒 Security Features
 
 - **Input Validation**: Pre-LLM security layer
 - **Prompt Injection Detection**: Regex + pattern matching
-- **Rate Limiting**: Prevents API abuse
+- **Rate Limiting**: Prevents API abuse at both workflow and user input entry points
 - **Input Sanitization**: Removes harmful content
 - **Threat Classification**: Low/Medium/High severity levels
 
@@ -231,9 +241,11 @@ pip install -r requirements.txt --upgrade
 - Ensure proper environment variable loading
 
 **Rate Limit Errors:**
-- Monitor metrics dashboard
+- Monitor the metrics dashboard, especially RPM, TPM, and blocked requests
+- Research submissions are checked before execution in both the Streamlit UI and FastAPI `/research` endpoint
+- Input submissions reserve an estimated token budget using `max(250, min(1000, len(input) * 4))`
 - Adjust rate limits in `.env`
-- Wait for rate limit window to reset
+- Wait for the rate limit window to reset before retrying
 
 **LinkedIn Scraping Issues:**
 - ⚠️ LinkedIn actively blocks automated scraping

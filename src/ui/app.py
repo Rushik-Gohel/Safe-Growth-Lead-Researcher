@@ -113,12 +113,24 @@ def main():
             )
             st.stop()
         
+        estimated_tokens = max(250, min(1000, len(user_input) * 4))
+        can_proceed, wait_time = token_governor.check_rate_limit(
+            estimated_tokens=estimated_tokens
+        )
+        
+        if not can_proceed:
+            render_error_message(
+                f"Rate limit reached for research input. Please wait {wait_time:.1f} seconds before trying again."
+            )
+            st.stop()
+        
         # Run workflow with spinner
         result = None
         with st.spinner("🔍 Researching target..."):
             try:
                 # Run agent workflow
                 result = lead_research_agent.run(user_input)
+                token_governor.record_request(tokens_used=estimated_tokens)
                 
                 logger.info(f"Workflow result received: {type(result)}")
                 logger.info(f"Result keys: {result.keys() if result else 'None'}")

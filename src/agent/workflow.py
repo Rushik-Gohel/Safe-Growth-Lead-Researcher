@@ -9,6 +9,7 @@ from langgraph.graph import StateGraph, END
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 
 from ..core.config import settings
+from ..core.cache import cached
 from ..security.guardrails import guardrails
 from ..tools.linkedin_scraper import linkedin_scraper, LinkedInProfile
 from ..tools.search_tools import search_tools, SearchResult
@@ -331,9 +332,10 @@ class LeadResearchAgent:
         
         return state
     
-    def run(self, user_input: str) -> AgentState:
+    @cached(ttl=settings.workflow_cache_ttl, key_prefix="workflow")
+    def _run_workflow_cached(self, user_input: str) -> AgentState:
         """
-        Run the agent workflow.
+        Internal cached method for workflow execution.
         
         Args:
             user_input: User's research request
@@ -341,7 +343,7 @@ class LeadResearchAgent:
         Returns:
             Final agent state
         """
-        logger.info(f"Starting agent workflow for: {user_input[:50]}...")
+        logger.info(f"Executing workflow (cache miss) for: {user_input[:50]}...")
         
         # Initialize state
         initial_state: AgentState = {
@@ -369,6 +371,24 @@ class LeadResearchAgent:
         )
         
         return final_state
+    
+    def run(self, user_input: str) -> AgentState:
+        """
+        Run the agent workflow with caching.
+        
+        If the same input has been processed recently (within cache TTL),
+        returns the cached result instead of re-running the entire workflow.
+        
+        Args:
+            user_input: User's research request
+            
+        Returns:
+            Final agent state (from cache or fresh execution)
+        """
+        logger.info(f"Starting agent workflow for: {user_input[:50]}...")
+        
+        # Use cached workflow execution
+        return self._run_workflow_cached(user_input)
 
 
 # Global agent instance
