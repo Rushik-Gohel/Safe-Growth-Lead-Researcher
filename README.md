@@ -61,23 +61,28 @@ cp .env.example .env
 
 5. **Run the application**
 
-**Streamlit UI:**
+**Streamlit UI (Recommended):**
+```bash
+# Set PYTHONPATH and run
+export PYTHONPATH=$PWD  # On Windows: set PYTHONPATH=%CD%
+python -m streamlit run src/ui/app.py
+```
+
+Or use the launcher script:
 ```bash
 python run_ui.py
 ```
 
 **FastAPI Backend:**
 ```bash
-python run_api.py
+# Set PYTHONPATH and run
+export PYTHONPATH=$PWD  # On Windows: set PYTHONPATH=%CD%
+python -m uvicorn src.api.main:app --reload
 ```
 
-Or use the module approach:
+Or use the launcher script:
 ```bash
-# Streamlit
-python -m streamlit run src/ui/app.py
-
-# FastAPI
-python -m uvicorn src.api.main:app --reload
+python run_api.py
 ```
 
 ### Docker Deployment

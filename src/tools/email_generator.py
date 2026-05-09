@@ -65,12 +65,16 @@ class EmailGenerator:
             
             # Store client and config
             self.client = client
+            
+            # Use correct model name for new API (without version prefix)
+            self.model_name = "gemini-1.5-flash-latest"
+            
             self.generation_config = types.GenerateContentConfig(
                 temperature=self.temperature,
                 max_output_tokens=self.max_tokens,
             )
             
-            logger.info("Gemini client initialized")
+            logger.info(f"Gemini client initialized with model: {self.model_name}")
             
         except ImportError:
             logger.error("google-genai library not installed. Install with: pip install google-genai")

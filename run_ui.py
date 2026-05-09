@@ -1,25 +1,33 @@
 """Entry point for Streamlit UI."""
 
 import sys
+import os
 from pathlib import Path
 
 # Add project root to Python path
-project_root = Path(__file__).parent
+project_root = Path(__file__).parent.resolve()
 sys.path.insert(0, str(project_root))
 
-# Now run the Streamlit app
+# Set PYTHONPATH environment variable
+os.environ['PYTHONPATH'] = str(project_root)
+
 if __name__ == "__main__":
-    import streamlit.web.cli as stcli
-    import sys
+    # Import after path is set
+    import subprocess
     
-    sys.argv = [
+    app_path = project_root / "src" / "ui" / "app.py"
+    
+    # Run streamlit with proper Python path
+    result = subprocess.run([
+        sys.executable,
+        "-m",
         "streamlit",
         "run",
-        str(project_root / "src" / "ui" / "app.py"),
+        str(app_path),
         "--server.port=8501",
         "--server.address=0.0.0.0"
-    ]
+    ], env={**os.environ, 'PYTHONPATH': str(project_root)})
     
-    sys.exit(stcli.main())
+    sys.exit(result.returncode)
 
 # Made with Bob

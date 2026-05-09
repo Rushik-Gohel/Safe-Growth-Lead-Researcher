@@ -3,11 +3,18 @@
 import streamlit as st
 import asyncio
 from typing import Optional
+import sys
+from pathlib import Path
 
-from ..agent.workflow import lead_research_agent
-from ..core.rate_limiter import token_governor
-from ..security.guardrails import guardrails
-from .components import (
+# Add project root to path if not already there
+project_root = Path(__file__).parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+from src.agent.workflow import lead_research_agent
+from src.core.rate_limiter import token_governor
+from src.security.guardrails import guardrails
+from src.ui.components import (
     render_metrics_sidebar,
     render_performance_metrics,
     render_error_message,

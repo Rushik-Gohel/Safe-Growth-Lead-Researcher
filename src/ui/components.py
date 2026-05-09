@@ -2,7 +2,15 @@
 
 import streamlit as st
 from typing import Optional
-from ..core.rate_limiter import RateLimitMetrics
+import sys
+from pathlib import Path
+
+# Add project root to path if not already there
+project_root = Path(__file__).parent.parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+from src.core.rate_limiter import RateLimitMetrics
 
 
 def render_metrics_sidebar(metrics: RateLimitMetrics) -> None:
