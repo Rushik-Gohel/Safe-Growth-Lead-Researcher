@@ -1,6 +1,7 @@
 """Search tools with Tavily primary and DuckDuckGo fallback."""
 
 import logging
+import os
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 import asyncio
@@ -9,6 +10,9 @@ from ..core.config import settings
 from ..core.retry_handler import with_retry
 
 logger = logging.getLogger(__name__)
+
+# Mock mode for testing (set MOCK_SEARCH=true in environment)
+MOCK_MODE = os.getenv("MOCK_SEARCH", "false").lower() == "true"
 
 
 @dataclass
@@ -213,6 +217,10 @@ class SearchTools:
         Returns:
             List of SearchResult objects
         """
+        if MOCK_MODE:
+            logger.info(f"MOCK MODE: Generating mock company news for {company_name}")
+            return self._generate_mock_company_news(company_name, max_results)
+        
         query = f"{company_name} news recent announcements"
         return self.search(query, max_results)
     
@@ -231,8 +239,80 @@ class SearchTools:
         Returns:
             List of SearchResult objects
         """
+        if MOCK_MODE:
+            logger.info(f"MOCK MODE: Generating mock industry trends for {industry}")
+            return self._generate_mock_industry_trends(industry, max_results)
+        
         query = f"{industry} industry trends 2024"
         return self.search(query, max_results)
+    
+    def _generate_mock_company_news(self, company_name: str, max_results: int) -> List[SearchResult]:
+        """Generate mock company news for testing."""
+        mock_news = [
+            SearchResult(
+                title=f"{company_name} Announces Q4 2024 Results",
+                url=f"https://example.com/news/{company_name.lower()}-q4-results",
+                snippet=f"{company_name} reported strong Q4 2024 results with revenue growth of 15% year-over-year. The company exceeded analyst expectations across all key metrics.",
+                source="mock",
+                published_date="2024-01-15"
+            ),
+            SearchResult(
+                title=f"{company_name} Launches New Product Line",
+                url=f"https://example.com/news/{company_name.lower()}-new-product",
+                snippet=f"{company_name} unveiled its latest product innovation at the annual conference. The new offering is expected to capture significant market share in the coming quarters.",
+                source="mock",
+                published_date="2024-01-10"
+            ),
+            SearchResult(
+                title=f"{company_name} Expands Global Operations",
+                url=f"https://example.com/news/{company_name.lower()}-expansion",
+                snippet=f"{company_name} announced plans to expand operations into three new international markets. The expansion is part of the company's strategic growth initiative.",
+                source="mock",
+                published_date="2024-01-05"
+            ),
+            SearchResult(
+                title=f"{company_name} Partners with Industry Leader",
+                url=f"https://example.com/news/{company_name.lower()}-partnership",
+                snippet=f"{company_name} formed a strategic partnership with a leading technology provider. The collaboration aims to enhance customer experience and drive innovation.",
+                source="mock",
+                published_date="2023-12-28"
+            ),
+            SearchResult(
+                title=f"{company_name} Wins Industry Award",
+                url=f"https://example.com/news/{company_name.lower()}-award",
+                snippet=f"{company_name} received the prestigious Industry Excellence Award for innovation and customer satisfaction. This marks the third consecutive year the company has been recognized.",
+                source="mock",
+                published_date="2023-12-20"
+            ),
+        ]
+        return mock_news[:max_results]
+    
+    def _generate_mock_industry_trends(self, industry: str, max_results: int) -> List[SearchResult]:
+        """Generate mock industry trends for testing."""
+        mock_trends = [
+            SearchResult(
+                title=f"Top {industry} Trends for 2024",
+                url=f"https://example.com/trends/{industry.lower()}-2024",
+                snippet=f"The {industry} industry is experiencing rapid transformation driven by AI, automation, and changing customer expectations. Companies are investing heavily in digital transformation initiatives.",
+                source="mock",
+                published_date="2024-01-01"
+            ),
+            SearchResult(
+                title=f"How AI is Reshaping the {industry} Industry",
+                url=f"https://example.com/trends/ai-{industry.lower()}",
+                snippet=f"Artificial intelligence is revolutionizing the {industry} sector. From predictive analytics to automated workflows, AI adoption is accelerating across the industry.",
+                source="mock",
+                published_date="2023-12-15"
+            ),
+            SearchResult(
+                title=f"{industry} Market Outlook 2024-2025",
+                url=f"https://example.com/trends/{industry.lower()}-outlook",
+                snippet=f"Industry analysts predict strong growth for the {industry} sector over the next two years. Key drivers include technological innovation, market expansion, and increased investment.",
+                source="mock",
+                published_date="2023-12-10"
+            ),
+        ]
+        return mock_trends[:max_results]
     
     def search_person_info(
         self,

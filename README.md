@@ -235,6 +235,15 @@ pip install -r requirements.txt --upgrade
 - Adjust rate limits in `.env`
 - Wait for rate limit window to reset
 
+**LinkedIn Scraping Issues:**
+- ⚠️ LinkedIn actively blocks automated scraping
+- The scraper is included for demonstration purposes
+- For production use, consider:
+  - Using LinkedIn's official API
+  - Providing company name instead of LinkedIn URL
+  - The system will gracefully continue without LinkedIn data
+- The workflow will still generate emails using search results
+
 ## 🤝 Contributing
 
 1. Fork the repository

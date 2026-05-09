@@ -144,7 +144,7 @@ class LeadResearchAgent:
         return state
     
     def _scrape_linkedin(self, state: AgentState) -> AgentState:
-        """Scrape LinkedIn profile if URL provided."""
+        """Scrape LinkedIn profile if URL provided (optional - continues on failure)."""
         logger.info("Scraping LinkedIn profile...")
         
         user_input = state["user_input"]
@@ -161,14 +161,26 @@ class LeadResearchAgent:
                         AIMessage(content=f"Found LinkedIn profile: {profile.name}")
                     )
                 else:
-                    logger.warning(f"LinkedIn scraping failed: {profile.error}")
-                    state["errors"].append(f"LinkedIn: {profile.error}")
+                    error_msg = profile.error or "Unknown error - profile data not available"
+                    logger.warning(f"LinkedIn scraping failed: {error_msg}")
+                    logger.info("Continuing research without LinkedIn profile data...")
+                    state["errors"].append(f"LinkedIn: {error_msg} (continuing without profile)")
+                    state["messages"].append(
+                        AIMessage(content="LinkedIn profile unavailable - continuing with company research")
+                    )
                     
             except Exception as e:
                 logger.error(f"LinkedIn scraping error: {str(e)}")
-                state["errors"].append(f"LinkedIn: {str(e)}")
+                logger.info("Continuing research without LinkedIn profile data...")
+                state["errors"].append(f"LinkedIn: {str(e)} (continuing without profile)")
+                state["messages"].append(
+                    AIMessage(content="LinkedIn profile unavailable - continuing with company research")
+                )
         else:
-            logger.info("No LinkedIn URL provided, skipping profile scraping")
+            logger.info("No LinkedIn URL provided, using input as company/person name")
+            state["messages"].append(
+                AIMessage(content=f"Researching: {user_input}")
+            )
         
         return state
     

@@ -4,7 +4,18 @@ import streamlit as st
 import asyncio
 from typing import Optional
 import sys
+import logging
 from pathlib import Path
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger(__name__)
 
 # Add project root to path if not already there
 project_root = Path(__file__).parent.parent.parent
@@ -93,88 +104,110 @@ def main():
     if research_button and user_input:
         st.divider()
         
-        # Create placeholder for progress
-        progress_placeholder = st.empty()
-        result_placeholder = st.empty()
+        # Validate input first
+        validation_result = guardrails.validate_input(user_input)
         
-        with progress_placeholder.container():
-            with st.spinner("🔍 Validating input..."):
-                # Validate input
-                validation_result = guardrails.validate_input(user_input)
+        if not validation_result.is_safe:
+            render_error_message(
+                guardrails.get_security_response(validation_result)
+            )
+            st.stop()
+        
+        # Run workflow with spinner
+        result = None
+        with st.spinner("🔍 Researching target..."):
+            try:
+                # Run agent workflow
+                result = lead_research_agent.run(user_input)
                 
-                if not validation_result.is_safe:
-                    render_error_message(
-                        guardrails.get_security_response(validation_result)
-                    )
+                logger.info(f"Workflow result received: {type(result)}")
+                logger.info(f"Result keys: {result.keys() if result else 'None'}")
+                
+                # Check if we got a valid result
+                if not result:
+                    st.error("No result returned from agent")
                     st.stop()
-        
-        with progress_placeholder.container():
-            with st.spinner("🔍 Researching target..."):
-                try:
-                    # Run agent workflow
-                    result = lead_research_agent.run(user_input)
-                    
-                    # Clear progress
-                    progress_placeholder.empty()
-                    
-                    # Display results
-                    with result_placeholder.container():
-                        # Performance metrics
-                        if result.get("ttft") and result.get("total_time"):
-                            render_performance_metrics(
-                                ttft=result["ttft"],
-                                total_time=result["total_time"]
-                            )
-                        
-                        # Show errors if any
-                        if result.get("errors"):
-                            st.warning(f"⚠️ {len(result['errors'])} errors occurred during research")
-                            with st.expander("View Errors"):
-                                for error in result["errors"]:
-                                    st.text(f"• {error}")
-                        
-                        # Display research summary
-                        st.subheader("📋 Research Summary")
-                        
-                        if result.get("linkedin_profile") and result["linkedin_profile"].is_valid:
-                            profile = result["linkedin_profile"]
-                            st.markdown(f"""
-                            **Name:** {profile.name}  
-                            **Title:** {profile.title}  
-                            **Company:** {profile.company}  
-                            **Location:** {profile.location or 'N/A'}
-                            """)
-                        
-                        if result.get("company_news"):
-                            st.markdown(f"**Company News:** {len(result['company_news'])} articles found")
-                        
-                        if result.get("industry_trends"):
-                            st.markdown(f"**Industry Trends:** {len(result['industry_trends'])} articles found")
-                        
-                        st.divider()
-                        
-                        # Display generated email
-                        if result.get("email"):
-                            render_email_output(result["email"])
-                            
-                            # Add download button
-                            st.download_button(
-                                label="📥 Download Email",
-                                data=result["email"],
-                                file_name="outreach_email.txt",
-                                mime="text/plain"
-                            )
-                        else:
-                            render_error_message("Failed to generate email")
-                        
-                        # Success message
-                        render_success_message(
-                            f"Research completed in {result.get('total_time', 0):.2f}s"
-                        )
                 
-                except Exception as e:
-                    progress_placeholder.empty()
-                    render_error_message(f"Research failed: {str(e)}")
+            except Exception as e:
+                logger.error(f"Workflow failed: {str(e)}", exc_info=True)
+                st.error(f"❌ Research failed: {str(e)}")
+                with st.expander("Error Details"):
+                    st.exception(e)
+                st.stop()
+        
+        # Display results AFTER spinner completes (only if result exists)
+        if result:
+            try:
+                # Performance metrics
+                if result.get("ttft") and result.get("total_time"):
+                    render_performance_metrics(
+                        ttft=result["ttft"],
+                        total_time=result["total_time"]
+                    )
+                
+                # Show errors if any
+                if result.get("errors") and len(result["errors"]) > 0:
+                    st.warning(f"⚠️ {len(result['errors'])} errors occurred during research")
+                    with st.expander("View Errors"):
+                        for error in result["errors"]:
+                            st.text(f"• {error}")
+                
+                # Display research summary
+                st.subheader("📋 Research Summary")
+                
+                # LinkedIn profile (with null checks)
+                profile = result.get("linkedin_profile")
+                if profile and hasattr(profile, 'is_valid') and profile.is_valid:
+                    st.markdown(f"""
+                    **Name:** {getattr(profile, 'name', 'N/A')}
+                    **Title:** {getattr(profile, 'title', 'N/A')}
+                    **Company:** {getattr(profile, 'company', 'N/A')}
+                    **Location:** {getattr(profile, 'location', None) or 'N/A'}
+                    """)
+                else:
+                    st.info("ℹ️ LinkedIn profile data not available - research based on company information")
+                
+                # Company news (with null checks)
+                company_news = result.get("company_news") or []
+                if len(company_news) > 0:
+                    st.markdown(f"**Company News:** {len(company_news)} articles found")
+                else:
+                    st.info("No company news found")
+                
+                # Industry trends (with null checks)
+                industry_trends = result.get("industry_trends") or []
+                if len(industry_trends) > 0:
+                    st.markdown(f"**Industry Trends:** {len(industry_trends)} articles found")
+                else:
+                    st.info("No industry trends found")
+                
+                st.divider()
+                
+                # Display generated email
+                email = result.get("email")
+                if email and email.strip():
+                    render_email_output(email)
+                    
+                    # Add download button
+                    st.download_button(
+                        label="📥 Download Email",
+                        data=email,
+                        file_name="outreach_email.txt",
+                        mime="text/plain"
+                    )
+                    
+                    # Success message
+                    render_success_message(
+                        f"✅ Research completed in {result.get('total_time', 0):.2f}s"
+                    )
+                else:
+                    render_error_message("Failed to generate email. Please check the errors above.")
+                    logger.error(f"Email generation failed. Result: {result}")
+                    
+            except Exception as e:
+                logger.error(f"Error displaying results: {str(e)}", exc_info=True)
+                st.error(f"❌ Error displaying results: {str(e)}")
+                with st.expander("Error Details"):
                     st.exception(e)
     
     elif research_button and not user_input:

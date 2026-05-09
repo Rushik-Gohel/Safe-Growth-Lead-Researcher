@@ -1,6 +1,7 @@
 """Email generation tool using LLM."""
 
 import logging
+import os
 from typing import Dict, Any, Optional, AsyncIterator
 from dataclasses import dataclass
 
@@ -8,6 +9,9 @@ from ..core.config import settings
 from ..core.rate_limiter import token_governor
 
 logger = logging.getLogger(__name__)
+
+# Mock mode for testing (set MOCK_EMAIL_GENERATION=true in environment)
+MOCK_MODE = os.getenv("MOCK_EMAIL_GENERATION", "false").lower() == "true"
 
 
 @dataclass
@@ -66,8 +70,8 @@ class EmailGenerator:
             # Store client and config
             self.client = client
             
-            # Use correct model name for new API (without version prefix)
-            self.model_name = "gemini-1.5-flash-latest"
+            # Use correct model name for new API (with models/ prefix)
+            self.model_name = "models/gemini-2.5-flash"
             
             self.generation_config = types.GenerateContentConfig(
                 temperature=self.temperature,
@@ -100,14 +104,23 @@ class EmailGenerator:
             "## Target Information:",
         ]
         
+        # Check if we have any target information
+        has_target_info = False
         if context.target_name:
             prompt_parts.append(f"- Name: {context.target_name}")
+            has_target_info = True
         if context.target_title:
             prompt_parts.append(f"- Title: {context.target_title}")
+            has_target_info = True
         if context.target_company:
             prompt_parts.append(f"- Company: {context.target_company}")
+            has_target_info = True
         if context.target_bio:
             prompt_parts.append(f"- Bio: {context.target_bio}")
+            has_target_info = True
+        
+        if not has_target_info:
+            prompt_parts.append("- Limited profile information available")
         
         if context.company_news:
             prompt_parts.extend([
@@ -128,11 +141,13 @@ class EmailGenerator:
             "## Instructions:",
             "1. Write a personalized cold outreach email (150-200 words)",
             "2. Reference specific details from the research above",
-            "3. Demonstrate understanding of their role and company",
-            "4. Offer clear value proposition",
-            "5. Include a soft call-to-action",
-            "6. Use professional but conversational tone",
-            "7. Do NOT use generic templates or buzzwords",
+            "3. Focus on the company news and industry trends if profile details are limited",
+            "4. Demonstrate understanding of their business and industry",
+            "5. Offer clear value proposition",
+            "6. Include a soft call-to-action",
+            "7. Use professional but conversational tone",
+            "8. Do NOT use generic templates or buzzwords",
+            "9. If limited information is available, focus on the company and industry insights",
             "",
             "## Email Format:",
             "Subject: [Compelling subject line]",
@@ -157,6 +172,11 @@ class EmailGenerator:
         Returns:
             Generated email text
         """
+        # Mock mode for testing
+        if MOCK_MODE:
+            logger.info("MOCK MODE: Generating mock email...")
+            return self._generate_mock_email(context)
+        
         if not self.client:
             raise RuntimeError("Gemini client not initialized")
         
@@ -189,6 +209,30 @@ class EmailGenerator:
         except Exception as e:
             logger.error(f"Email generation failed: {str(e)}")
             raise
+    
+    def _generate_mock_email(self, context: EmailContext) -> str:
+        """Generate a mock email for testing."""
+        company = context.target_company or "your company"
+        name = context.target_name or "[Prospect Name]"
+        title = context.target_title or "your role"
+        
+        mock_email = f"""Subject: Thought on {company}'s recent developments
+
+Hi {name},
+
+I've been following {company}'s work in the industry, and I was particularly interested in your recent initiatives. As someone in {title}, I imagine you're focused on driving innovation and growth.
+
+I noticed some interesting developments in your space, and I believe there's an opportunity to discuss how we might support your team's objectives. Our solutions have helped similar organizations streamline their operations and achieve measurable results.
+
+Would you be open to a brief 15-minute conversation next week to explore potential synergies?
+
+Best regards,
+[Your name]
+
+---
+[MOCK EMAIL - Generated for UI testing]
+"""
+        return mock_email
     
     async def generate_email_stream(
         self,

@@ -3,10 +3,14 @@
 import sys
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Add project root to Python path
 project_root = Path(__file__).parent.resolve()
 sys.path.insert(0, str(project_root))
+
+# Load .env file
+load_dotenv(project_root / '.env')
 
 # Set PYTHONPATH environment variable
 os.environ['PYTHONPATH'] = str(project_root)

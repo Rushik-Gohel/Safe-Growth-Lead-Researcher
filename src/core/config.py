@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     retry_delay: int = Field(default=2, description="Initial retry delay in seconds")
     
     # Model Configuration
-    model_name: str = Field(default="gemini-1.5-flash", description="Gemini model name")
+    model_name: str = Field(default="models/gemini-2.5-flash", description="Gemini model name")
     temperature: float = Field(default=0.7, description="LLM temperature")
     max_output_tokens: int = Field(default=2048, description="Maximum output tokens")
     

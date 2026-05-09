@@ -159,6 +159,12 @@ class LinkedInScraper:
         profile = LinkedInProfile(url=url)
         
         try:
+            # Check if we got a login page or error page
+            if 'authwall' in html.lower() or 'sign in' in html.lower()[:1000]:
+                profile.error = "LinkedIn requires authentication - cannot scrape without login"
+                logger.warning("LinkedIn returned login/auth wall")
+                return profile
+            
             # Note: LinkedIn's HTML structure changes frequently
             # This is a simplified example - adjust selectors as needed
             
@@ -189,7 +195,12 @@ class LinkedInScraper:
             if about_elem:
                 profile.bio = about_elem.get_text(strip=True)[:500]  # Limit length
             
-            logger.info(f"Successfully parsed profile: {profile.name or 'Unknown'}")
+            # Check if we got any data
+            if not profile.name and not profile.title:
+                profile.error = "Could not extract profile data - LinkedIn may have blocked the request or changed their HTML structure"
+                logger.warning("No profile data extracted from HTML")
+            else:
+                logger.info(f"Successfully parsed profile: {profile.name or 'Unknown'}")
             
         except Exception as e:
             logger.error(f"Error parsing profile: {str(e)}")
