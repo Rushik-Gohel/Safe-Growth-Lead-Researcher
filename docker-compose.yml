@@ -1,31 +1,76 @@
-version: '3.8'
-
 services:
-  # FastAPI Backend
+  # FastAPI Backend (Internal only - not exposed externally)
   api:
     build:
       context: .
       dockerfile: Dockerfile.api
     container_name: safe-growth-api
-    ports:
-      - "8000:8000"
+    # Port 8000 is only accessible within the Docker network
+    # External users cannot access the API directly
+    expose:
+      - "8000"
     environment:
+      # API Keys
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - TAVILY_API_KEY=${TAVILY_API_KEY}
       - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}
+      
+      # LangSmith Configuration
       - LANGCHAIN_TRACING_V2=${LANGCHAIN_TRACING_V2:-true}
+      - LANGCHAIN_ENDPOINT=${LANGCHAIN_ENDPOINT:-https://api.smith.langchain.com}
       - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-safe-growth-researcher}
+      
+      # Rate Limits
+      - GEMINI_RPM=${GEMINI_RPM:-15}
+      - GEMINI_TPM=${GEMINI_TPM:-1000000}
+      - GEMINI_TPD=${GEMINI_TPD:-1500}
+      - TAVILY_MONTHLY_LIMIT=${TAVILY_MONTHLY_LIMIT:-1000}
+      
+      # Application Settings
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENABLE_METRICS=${ENABLE_METRICS:-true}
+      - ENABLE_TRACING=${ENABLE_TRACING:-true}
+      
+      # Security
+      - MAX_INPUT_LENGTH=${MAX_INPUT_LENGTH:-1000}
+      - ENABLE_GUARDRAILS=${ENABLE_GUARDRAILS:-true}
+      
+      # Performance & Caching
+      - ENABLE_CACHING=${ENABLE_CACHING:-true}
+      - CACHE_TTL=${CACHE_TTL:-3600}
+      - CACHE_MAX_SIZE=${CACHE_MAX_SIZE:-1000}
+      - WORKFLOW_CACHE_TTL=${WORKFLOW_CACHE_TTL:-3600}
+      - LINKEDIN_CACHE_TTL=${LINKEDIN_CACHE_TTL:-3600}
+      - SEARCH_CACHE_TTL=${SEARCH_CACHE_TTL:-1800}
+      - COMPANY_NEWS_CACHE_TTL=${COMPANY_NEWS_CACHE_TTL:-3600}
+      - INDUSTRY_TRENDS_CACHE_TTL=${INDUSTRY_TRENDS_CACHE_TTL:-7200}
+      
+      # Retry Settings
+      - MAX_RETRIES=${MAX_RETRIES:-3}
+      - RETRY_DELAY=${RETRY_DELAY:-2}
     env_file:
       - .env
-    volumes:
-      - ./src:/app/src
+    # Remove volume mount in production for security
+    # volumes:
+    #   - ./src:/app/src
     restart: unless-stopped
+    networks:
+      - safe-growth-network
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
 
   # Streamlit UI
   ui:
@@ -36,27 +81,73 @@ services:
     ports:
       - "8501:8501"
     environment:
+      # API Keys
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - TAVILY_API_KEY=${TAVILY_API_KEY}
       - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}
+      
+      # LangSmith Configuration
       - LANGCHAIN_TRACING_V2=${LANGCHAIN_TRACING_V2:-true}
+      - LANGCHAIN_ENDPOINT=${LANGCHAIN_ENDPOINT:-https://api.smith.langchain.com}
       - LANGCHAIN_PROJECT=${LANGCHAIN_PROJECT:-safe-growth-researcher}
+      
+      # Rate Limits
+      - GEMINI_RPM=${GEMINI_RPM:-15}
+      - GEMINI_TPM=${GEMINI_TPM:-1000000}
+      - GEMINI_TPD=${GEMINI_TPD:-1500}
+      - TAVILY_MONTHLY_LIMIT=${TAVILY_MONTHLY_LIMIT:-1000}
+      
+      # Application Settings
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - ENABLE_METRICS=${ENABLE_METRICS:-true}
+      - ENABLE_TRACING=${ENABLE_TRACING:-true}
+      
+      # Security
+      - MAX_INPUT_LENGTH=${MAX_INPUT_LENGTH:-1000}
+      - ENABLE_GUARDRAILS=${ENABLE_GUARDRAILS:-true}
+      
+      # Performance & Caching
+      - ENABLE_CACHING=${ENABLE_CACHING:-true}
+      - CACHE_TTL=${CACHE_TTL:-3600}
+      - CACHE_MAX_SIZE=${CACHE_MAX_SIZE:-1000}
+      - WORKFLOW_CACHE_TTL=${WORKFLOW_CACHE_TTL:-3600}
+      - LINKEDIN_CACHE_TTL=${LINKEDIN_CACHE_TTL:-3600}
+      - SEARCH_CACHE_TTL=${SEARCH_CACHE_TTL:-1800}
+      - COMPANY_NEWS_CACHE_TTL=${COMPANY_NEWS_CACHE_TTL:-3600}
+      - INDUSTRY_TRENDS_CACHE_TTL=${INDUSTRY_TRENDS_CACHE_TTL:-7200}
+      
+      # Retry Settings
+      - MAX_RETRIES=${MAX_RETRIES:-3}
+      - RETRY_DELAY=${RETRY_DELAY:-2}
     env_file:
       - .env
-    volumes:
-      - ./src:/app/src
+    # Remove volume mount in production for security
+    # volumes:
+    #   - ./src:/app/src
     restart: unless-stopped
+    networks:
+      - safe-growth-network
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    # Resource limits for production
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
 
 networks:
-  default:
-    name: safe-growth-network
+  safe-growth-network:
+    driver: bridge
 
 # Made with Bob
