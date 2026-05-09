@@ -1,0 +1,40 @@
+# Core Framework
+langgraph>=0.2.0
+langchain>=0.2.0
+langchain-google-genai>=1.0.0
+langsmith>=0.1.0
+
+# API & Tools
+google-genai>=0.2.0
+tavily-python>=0.3.0
+ddgs>=1.0.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+
+# Backend & Frontend
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+streamlit>=1.32.0
+pydantic>=2.6.0
+pydantic-settings>=2.2.0
+
+# Utilities
+tenacity>=8.2.0
+python-dotenv>=1.0.0
+redis>=5.0.0
+aiohttp>=3.9.0
+
+# Security
+python-multipart>=0.0.9
+
+# Development
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+pytest-cov>=4.1.0
+black>=24.0.0
+ruff>=0.3.0
+mypy>=1.8.0
+
+# Monitoring
+prometheus-client>=0.20.0
