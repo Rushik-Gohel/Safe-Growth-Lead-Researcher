@@ -7,9 +7,13 @@ An AI-powered lead research agent that takes a LinkedIn URL or company name, res
 - **🔍 Intelligent Research**: Scrapes LinkedIn profiles and searches for company news and industry trends
 - **📧 Personalized Emails**: Generates customized outreach emails based on research findings
 - **🛡️ Security Guardrails**: Detects and blocks prompt injection attempts
-- **⚡ Rate Limiting**: Token governor with RPM/TPM tracking, sliding window algorithm, and input-level research request throttling
+- **⚡ Multi-Level Rate Limiting**:
+  - Global token governor with RPM/TPM tracking
+  - Per-user rate limiting (5 req/min, 20 req/hour) for public deployments
+  - Sliding window algorithm for accurate tracking
 - **🔄 Error Handling**: Exponential backoff with automatic fallback to secondary sources
 - **📊 Real-time Metrics**: Live dashboard showing performance and rate limit status
+- **👋 Welcome Overlay**: Interactive onboarding with prompt starters
 - **🎯 Streaming Output**: Token-by-token email generation with TTFT tracking
 - **🔗 LangSmith Integration**: Full execution tracing and monitoring
 
@@ -102,16 +106,46 @@ docker-compose up -d
 - Streamlit UI: http://localhost:8501
 - FastAPI Docs: http://localhost:8000/docs
 
+### 🌐 Public Deployment
+
+When deploying to a public URL (Streamlit Cloud, Heroku, Railway, etc.):
+
+**✅ Built-in Protection:**
+- **Per-User Rate Limiting**: Automatically limits each user to 5 requests/minute and 20 requests/hour
+- **Session Tracking**: Uses session IDs (Streamlit) or IP addresses (API) to identify users
+- **Welcome Overlay**: Educates users about rate limits and proper usage
+- **Security Guardrails**: Blocks malicious inputs before they reach the LLM
+
+**📝 Deployment Checklist:**
+1. Set environment variables in your hosting platform
+2. Ensure `GOOGLE_API_KEY` and `TAVILY_API_KEY` are configured
+3. Monitor usage via the metrics dashboard
+4. Consider adjusting rate limits in `src/core/user_rate_limiter.py` based on your API quotas
+5. Review CORS settings in `src/api/main.py` for production
+
+**🔧 Customizing Rate Limits:**
+Edit `src/core/user_rate_limiter.py`:
+```python
+user_rate_limiter = UserRateLimiter(
+    requests_per_minute=5,   # Adjust as needed
+    requests_per_hour=20     # Adjust as needed
+)
+```
+
 ## 📖 Usage
 
 ### Streamlit UI
 
 1. Open http://localhost:8501
-2. Enter a LinkedIn URL or company name
-3. Click "Start Research"
-4. If the input rate limit is reached, wait for the displayed retry window before submitting again
-5. View real-time metrics in the sidebar
+2. **Welcome Screen**: On first visit, you'll see:
+   - Overview of what the agent does
+   - Prompt starters to try (Google, OpenAI, LinkedIn profiles, etc.)
+   - Rate limit information (5 req/min, 20 req/hour per user)
+3. Enter a LinkedIn URL or company name (or use a prompt starter)
+4. Click "Start Research"
+5. View real-time metrics in the sidebar including your personal usage
 6. Get personalized email draft
+7. **Rate Limiting**: If you exceed limits, wait for the displayed time before trying again
 
 ### API Endpoints
 
@@ -122,13 +156,17 @@ curl -X POST "http://localhost:8000/research" \
   -d '{"input": "https://linkedin.com/in/john-doe"}'
 ```
 
-**Rate limit behavior for research input:**
-- The UI and `/research` API now apply rate limiting before the workflow starts
-- Each research submission reserves an estimated token budget based on input size:
-  - `max(250, min(1000, len(input) * 4))`
-- When blocked:
-  - Streamlit shows a user-facing wait-time message
-  - FastAPI returns `HTTP 429 Too Many Requests`
+**Rate Limiting:**
+- **Per-User Limits** (for public deployments):
+  - 5 requests per minute per user
+  - 20 requests per hour per user
+  - Tracked by IP address (API) or session ID (Streamlit)
+- **Global Limits**:
+  - Each research submission reserves an estimated token budget: `max(250, min(1000, len(input) * 4))`
+  - Respects Gemini API RPM/TPM limits
+- **When Blocked**:
+  - Streamlit shows user-friendly wait-time message
+  - FastAPI returns `HTTP 429 Too Many Requests` with retry information
 
 **Get Metrics:**
 ```bash
@@ -158,18 +196,26 @@ Enable "Simulate Tool Failure" toggle to test error handling and fallback mechan
 ## 📊 Metrics Dashboard
 
 The sidebar displays real-time metrics:
-- **RPM**: Requests per minute (current/max)
-- **TPM**: Tokens per minute (current/max)
-- **TTFT**: Time to first token
-- **Total Time**: Complete execution time
-- **Total Requests/Tokens**: Cumulative statistics
-- **Requests Blocked**: Number of submissions blocked by rate limiting
+- **Global Metrics**:
+  - **RPM**: Requests per minute (current/max)
+  - **TPM**: Tokens per minute (current/max)
+  - **Total Requests/Tokens**: Cumulative statistics
+  - **Requests Blocked**: Number of submissions blocked by rate limiting
+- **Your Usage** (per-user):
+  - Requests this minute (out of 5)
+  - Requests this hour (out of 20)
+- **Performance**:
+  - **TTFT**: Time to first token
+  - **Total Time**: Complete execution time
 
 ## 🔒 Security Features
 
 - **Input Validation**: Pre-LLM security layer
 - **Prompt Injection Detection**: Regex + pattern matching
-- **Rate Limiting**: Prevents API abuse at both workflow and user input entry points
+- **Multi-Level Rate Limiting**:
+  - Per-user limits prevent individual abuse (5/min, 20/hour)
+  - Global limits protect API quotas (RPM/TPM)
+  - Prevents API credit exhaustion in public deployments
 - **Input Sanitization**: Removes harmful content
 - **Threat Classification**: Low/Medium/High severity levels
 
