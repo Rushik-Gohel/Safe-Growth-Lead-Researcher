@@ -5,8 +5,8 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Add project root to Python path
-project_root = Path(__file__).parent.resolve()
+# Add project root to Python path (parent of scripts folder)
+project_root = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(project_root))
 
 # Load .env file

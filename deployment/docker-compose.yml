@@ -2,8 +2,8 @@ services:
   # FastAPI Backend (Internal only - not exposed externally)
   api:
     build:
-      context: .
-      dockerfile: Dockerfile.api
+      context: ..
+      dockerfile: deployment/Dockerfile.api
     container_name: safe-growth-api
     # Port 8000 is only accessible within the Docker network
     # External users cannot access the API directly
@@ -49,7 +49,7 @@ services:
       - MAX_RETRIES=${MAX_RETRIES:-3}
       - RETRY_DELAY=${RETRY_DELAY:-2}
     env_file:
-      - .env
+      - ../.env
     # Remove volume mount in production for security
     # volumes:
     #   - ./src:/app/src
@@ -75,8 +75,8 @@ services:
   # Streamlit UI
   ui:
     build:
-      context: .
-      dockerfile: Dockerfile.ui
+      context: ..
+      dockerfile: deployment/Dockerfile.ui
     container_name: safe-growth-ui
     ports:
       - "8501:8501"
@@ -120,7 +120,7 @@ services:
       - MAX_RETRIES=${MAX_RETRIES:-3}
       - RETRY_DELAY=${RETRY_DELAY:-2}
     env_file:
-      - .env
+      - ../.env
     # Remove volume mount in production for security
     # volumes:
     #   - ./src:/app/src

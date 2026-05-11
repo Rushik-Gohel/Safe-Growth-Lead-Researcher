@@ -20,7 +20,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # Copy application code
 COPY --chown=appuser:appuser src/ ./src/
-COPY --chown=appuser:appuser run_api.py .
+COPY --chown=appuser:appuser scripts/run_api.py .
 
 # Copy environment template (will be overridden by docker-compose)
 COPY --chown=appuser:appuser .env.example .env
