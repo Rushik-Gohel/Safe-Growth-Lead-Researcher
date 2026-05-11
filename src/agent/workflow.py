@@ -301,12 +301,23 @@ class LeadResearchAgent:
             )
         
         try:
+            # Generate email with built-in retry logic
             email = email_generator.generate_email(context)
             state["email"] = email
-            logger.info("Email generated successfully")
-            state["messages"].append(
-                AIMessage(content="Email draft completed")
-            )
+            
+            # Validate completeness (double-check)
+            if email_generator._is_email_complete(email):
+                logger.info("Email generated and validated successfully")
+                state["messages"].append(
+                    AIMessage(content="Email draft completed")
+                )
+            else:
+                logger.warning("Email generated but may be incomplete")
+                state["messages"].append(
+                    AIMessage(content="Email draft completed (may be incomplete)")
+                )
+                state["errors"].append("Email validation: Email may be incomplete")
+                
         except Exception as e:
             logger.error(f"Email generation failed: {str(e)}")
             state["errors"].append(f"Email generation: {str(e)}")

@@ -2,6 +2,7 @@
 
 import logging
 import os
+import asyncio
 from typing import Dict, Any, Optional, AsyncIterator
 from dataclasses import dataclass
 
@@ -162,12 +163,55 @@ class EmailGenerator:
         
         return "\n".join(prompt_parts)
     
-    def generate_email(self, context: EmailContext) -> str:
+    def _is_email_complete(self, email_text: str) -> bool:
         """
-        Generate email synchronously.
+        Validate that the generated email is complete.
+        
+        Args:
+            email_text: Generated email text
+            
+        Returns:
+            True if email appears complete, False otherwise
+        """
+        if not email_text or len(email_text.strip()) < 100:
+            logger.warning("Email too short or empty")
+            return False
+        
+        # Check for subject line
+        if "Subject:" not in email_text:
+            logger.warning("Email missing subject line")
+            return False
+        
+        # Check for closing signature
+        closing_phrases = [
+            "best regards", "sincerely", "best", "regards",
+            "thank you", "thanks", "cheers", "warm regards"
+        ]
+        email_lower = email_text.lower()
+        has_closing = any(closing in email_lower for closing in closing_phrases)
+        
+        if not has_closing:
+            logger.warning("Email missing closing signature")
+            return False
+        
+        # Check for greeting
+        greeting_phrases = ["hi", "hello", "dear", "hey", "greetings"]
+        has_greeting = any(greeting in email_lower for greeting in greeting_phrases)
+        
+        if not has_greeting:
+            logger.warning("Email missing greeting")
+            return False
+        
+        logger.info("Email validation passed")
+        return True
+    
+    def generate_email(self, context: EmailContext, max_retries: int = 2) -> str:
+        """
+        Generate email synchronously with retry logic for incomplete emails.
         
         Args:
             context: Email context
+            max_retries: Maximum number of retry attempts
             
         Returns:
             Generated email text
@@ -183,32 +227,56 @@ class EmailGenerator:
         # Build prompt
         prompt = self._build_prompt(context)
         
-        # Check rate limits
-        estimated_tokens = len(prompt.split()) * 2  # Rough estimate
-        token_governor.wait_if_needed(estimated_tokens)
+        # Retry loop
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                # Check rate limits
+                estimated_tokens = len(prompt.split()) * 2  # Rough estimate
+                token_governor.wait_if_needed(estimated_tokens)
+                
+                logger.info(f"Generating email (attempt {attempt + 1}/{max_retries})...")
+                
+                # Generate response using new API
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=prompt,
+                    config=self.generation_config
+                )
+                
+                # Extract text
+                email_text = response.text
+                
+                # Validate completeness
+                if self._is_email_complete(email_text):
+                    # Record token usage (estimate for now)
+                    token_governor.record_request(estimated_tokens)
+                    logger.info(f"Email generated successfully: ~{estimated_tokens} tokens used")
+                    return email_text
+                else:
+                    logger.warning(f"Incomplete email detected on attempt {attempt + 1}")
+                    if attempt < max_retries - 1:
+                        logger.info("Retrying email generation...")
+                        continue
+                    else:
+                        logger.error("Max retries reached, returning incomplete email")
+                        # Return incomplete email rather than failing completely
+                        token_governor.record_request(estimated_tokens)
+                        return email_text
+                
+            except Exception as e:
+                last_error = e
+                logger.error(f"Email generation failed on attempt {attempt + 1}: {str(e)}")
+                if attempt < max_retries - 1:
+                    logger.info("Retrying after error...")
+                    continue
+                else:
+                    raise
         
-        try:
-            logger.info("Generating email...")
-            
-            # Generate response using new API
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=prompt,
-                config=self.generation_config
-            )
-            
-            # Extract text
-            email_text = response.text
-            
-            # Record token usage (estimate for now)
-            token_governor.record_request(estimated_tokens)
-            logger.info(f"Email generated: ~{estimated_tokens} tokens used")
-            
-            return email_text
-            
-        except Exception as e:
-            logger.error(f"Email generation failed: {str(e)}")
-            raise
+        # Should not reach here, but just in case
+        if last_error:
+            raise last_error
+        raise RuntimeError("Email generation failed after all retries")
     
     def _generate_mock_email(self, context: EmailContext) -> str:
         """Generate a mock email for testing."""
@@ -236,13 +304,17 @@ Best regards,
     
     async def generate_email_stream(
         self,
-        context: EmailContext
+        context: EmailContext,
+        max_retries: int = 2,
+        timeout_seconds: int = 30
     ) -> AsyncIterator[str]:
         """
-        Generate email with streaming.
+        Generate email with streaming, timeout protection, and retry logic.
         
         Args:
             context: Email context
+            max_retries: Maximum number of retry attempts
+            timeout_seconds: Timeout for streaming operation
             
         Yields:
             Email text chunks
@@ -253,34 +325,70 @@ Best regards,
         # Build prompt
         prompt = self._build_prompt(context)
         
-        # Check rate limits
-        estimated_tokens = len(prompt.split()) * 2
-        token_governor.wait_if_needed(estimated_tokens)
-        
-        try:
-            logger.info("Generating email (streaming)...")
-            
-            # Generate streaming response using new API
-            response = self.client.models.generate_content_stream(
-                model=self.model_name,
-                contents=prompt,
-                config=self.generation_config
-            )
-            
+        # Retry loop
+        for attempt in range(max_retries):
+            full_email = ""
             total_tokens = 0
-            async for chunk in response:
-                if chunk.text:
-                    yield chunk.text
-                    # Rough token estimation
-                    total_tokens += len(chunk.text.split())
             
-            # Record token usage
-            token_governor.record_request(total_tokens)
-            logger.info(f"Email generated (streaming): ~{total_tokens} tokens used")
-            
-        except Exception as e:
-            logger.error(f"Streaming email generation failed: {str(e)}")
-            raise
+            try:
+                # Check rate limits
+                estimated_tokens = len(prompt.split()) * 2
+                token_governor.wait_if_needed(estimated_tokens)
+                
+                logger.info(f"Generating email (streaming, attempt {attempt + 1}/{max_retries})...")
+                
+                # Generate streaming response with timeout protection
+                try:
+                    async with asyncio.timeout(timeout_seconds):
+                        response = self.client.models.generate_content_stream(
+                            model=self.model_name,
+                            contents=prompt,
+                            config=self.generation_config
+                        )
+                        
+                        async for chunk in response:
+                            if chunk.text:
+                                full_email += chunk.text
+                                yield chunk.text
+                                # Rough token estimation
+                                total_tokens += len(chunk.text.split())
+                
+                except asyncio.TimeoutError:
+                    logger.error(f"Streaming timeout after {timeout_seconds}s on attempt {attempt + 1}")
+                    if attempt < max_retries - 1:
+                        logger.info("Retrying after timeout...")
+                        continue
+                    else:
+                        raise RuntimeError(f"Email generation timed out after {timeout_seconds}s")
+                
+                # Validate completeness after streaming completes
+                if self._is_email_complete(full_email):
+                    # Record token usage
+                    token_governor.record_request(total_tokens)
+                    logger.info(f"Email generated (streaming): ~{total_tokens} tokens used")
+                    break
+                else:
+                    logger.warning(f"Incomplete email detected on streaming attempt {attempt + 1}")
+                    if attempt < max_retries - 1:
+                        logger.info("Retrying streaming generation...")
+                        continue
+                    else:
+                        logger.warning("Max retries reached, email may be incomplete")
+                        # Record token usage even for incomplete email
+                        token_governor.record_request(total_tokens)
+                        break
+                
+            except asyncio.TimeoutError:
+                # Already handled above, but catch again for safety
+                if attempt >= max_retries - 1:
+                    raise
+            except Exception as e:
+                logger.error(f"Streaming email generation failed on attempt {attempt + 1}: {str(e)}")
+                if attempt < max_retries - 1:
+                    logger.info("Retrying after error...")
+                    continue
+                else:
+                    raise
     
     def validate_email(self, email_text: str) -> bool:
         """
