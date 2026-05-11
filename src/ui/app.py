@@ -6,6 +6,8 @@ from typing import Optional
 import sys
 import logging
 from pathlib import Path
+import os
+import requests
 
 # Configure logging
 logging.basicConfig(
@@ -37,6 +39,33 @@ from src.ui.components import (
     render_trace_link,
     render_welcome_overlay
 )
+
+# Get API base URL from environment (for Render deployment)
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
+
+
+def call_research_api(user_input: str, simulate_failure: bool = False) -> dict:
+    """Call the research API endpoint."""
+    try:
+        response = requests.post(
+            f"{API_BASE_URL}/research",
+            json={
+                "input": user_input,
+                "simulate_failure": simulate_failure
+            },
+            timeout=120  # 2 minute timeout for research
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.Timeout:
+        raise Exception("Request timed out. Please try again.")
+    except requests.exceptions.ConnectionError:
+        raise Exception(f"Could not connect to API at {API_BASE_URL}")
+    except requests.exceptions.HTTPError as e:
+        error_detail = e.response.json() if e.response.content else str(e)
+        raise Exception(f"API error: {error_detail}")
+    except Exception as e:
+        raise Exception(f"Unexpected error: {str(e)}")
 
 
 # Page configuration
@@ -172,9 +201,34 @@ def main():
         result = None
         with st.spinner("🔍 Researching target..."):
             try:
-                # Run agent workflow
-                result = lead_research_agent.run(user_input)
-                token_governor.record_request(tokens_used=estimated_tokens)
+                # Check if API_BASE_URL is set (Render deployment mode)
+                if API_BASE_URL != "http://localhost:8000":
+                    # Call API endpoint
+                    logger.info(f"Calling API at {API_BASE_URL}")
+                    api_response = call_research_api(user_input, simulate_failure)
+                    
+                    # Convert API response to workflow result format
+                    result = {
+                        "email": api_response.get("email"),
+                        "linkedin_profile": api_response.get("linkedin_profile"),
+                        "company_news": [],  # API doesn't return full data
+                        "industry_trends": [],  # API doesn't return full data
+                        "errors": api_response.get("errors", []),
+                        "ttft": api_response.get("metrics", {}).get("ttft"),
+                        "total_time": api_response.get("metrics", {}).get("total_time"),
+                    }
+                    
+                    # Add counts from API response
+                    if api_response.get("company_news_count"):
+                        result["company_news"] = [None] * api_response["company_news_count"]
+                    if api_response.get("industry_trends_count"):
+                        result["industry_trends"] = [None] * api_response["industry_trends_count"]
+                    
+                else:
+                    # Local mode - run agent workflow directly
+                    logger.info("Running agent workflow locally")
+                    result = lead_research_agent.run(user_input)
+                    token_governor.record_request(tokens_used=estimated_tokens)
                 
                 logger.info(f"Workflow result received: {type(result)}")
                 logger.info(f"Result keys: {result.keys() if result else 'None'}")
@@ -219,13 +273,27 @@ def main():
                 
                 # LinkedIn profile (with null checks)
                 profile = result.get("linkedin_profile")
-                if profile and hasattr(profile, 'is_valid') and profile.is_valid:
-                    st.markdown(f"""
-                    **Name:** {getattr(profile, 'name', 'N/A')}
-                    **Title:** {getattr(profile, 'title', 'N/A')}
-                    **Company:** {getattr(profile, 'company', 'N/A')}
-                    **Location:** {getattr(profile, 'location', None) or 'N/A'}
-                    """)
+                if profile:
+                    # Handle both dict (from API) and object (from local workflow)
+                    if isinstance(profile, dict):
+                        if profile.get("is_valid"):
+                            st.markdown(f"""
+                            **Name:** {profile.get('name', 'N/A')}
+                            **Title:** {profile.get('title', 'N/A')}
+                            **Company:** {profile.get('company', 'N/A')}
+                            **Location:** {profile.get('location') or 'N/A'}
+                            """)
+                        else:
+                            st.info("ℹ️ LinkedIn profile data not available - research based on company information")
+                    elif hasattr(profile, 'is_valid') and profile.is_valid:
+                        st.markdown(f"""
+                        **Name:** {getattr(profile, 'name', 'N/A')}
+                        **Title:** {getattr(profile, 'title', 'N/A')}
+                        **Company:** {getattr(profile, 'company', 'N/A')}
+                        **Location:** {getattr(profile, 'location', None) or 'N/A'}
+                        """)
+                    else:
+                        st.info("ℹ️ LinkedIn profile data not available - research based on company information")
                 else:
                     st.info("ℹ️ LinkedIn profile data not available - research based on company information")
                 
