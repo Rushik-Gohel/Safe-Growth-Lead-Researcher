@@ -1,6 +1,6 @@
 """FastAPI backend for Safe-Growth Lead Researcher."""
 
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
@@ -8,6 +8,7 @@ import logging
 
 from ..agent.workflow import lead_research_agent
 from ..core.rate_limiter import token_governor
+from ..core.user_rate_limiter import user_rate_limiter
 from ..security.guardrails import guardrails
 from ..core.config import settings
 from ..core.cache import get_cache_stats, clear_cache
@@ -186,17 +187,32 @@ async def validate_input(request: ValidationRequest):
 
 
 @app.post("/research", response_model=ResearchResponse, tags=["Research"])
-async def research_lead(request: ResearchRequest):
+async def research_lead(request: ResearchRequest, http_request: Request):
     """
     Research a lead and generate personalized email.
     
     This endpoint:
     1. Validates input for security threats
-    2. Scrapes LinkedIn profile (if URL provided)
-    3. Searches for company news and industry trends
-    4. Generates personalized outreach email
+    2. Checks per-user rate limits
+    3. Scrapes LinkedIn profile (if URL provided)
+    4. Searches for company news and industry trends
+    5. Generates personalized outreach email
     """
     try:
+        # Get user identifier (IP address)
+        user_id = http_request.client.host if http_request.client else "unknown"
+        
+        # Check per-user rate limit
+        can_proceed_user, user_error = user_rate_limiter.check_rate_limit(user_id)
+        if not can_proceed_user:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "error": "User rate limit exceeded",
+                    "reason": user_error
+                }
+            )
+        
         # Validate input
         validation_result = guardrails.validate_input(request.input)
         
@@ -210,6 +226,7 @@ async def research_lead(request: ResearchRequest):
                 }
             )
         
+        # Check global rate limit
         estimated_tokens = max(250, min(1000, len(request.input) * 4))
         can_proceed, wait_time = token_governor.check_rate_limit(
             estimated_tokens=estimated_tokens
@@ -223,6 +240,9 @@ async def research_lead(request: ResearchRequest):
                     "reason": f"Please wait {wait_time:.1f} seconds before trying again."
                 }
             )
+        
+        # Record user request
+        user_rate_limiter.record_request(user_id)
         
         # Run agent workflow
         logger.info(f"Starting research for: {request.input[:50]}...")
