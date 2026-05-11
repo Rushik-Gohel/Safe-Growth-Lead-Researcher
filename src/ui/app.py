@@ -24,6 +24,7 @@ if str(project_root) not in sys.path:
 
 from src.agent.workflow import lead_research_agent
 from src.core.rate_limiter import token_governor
+from src.core.user_rate_limiter import user_rate_limiter
 from src.security.guardrails import guardrails
 from src.ui.components import (
     render_metrics_sidebar,
@@ -33,7 +34,8 @@ from src.ui.components import (
     render_email_output,
     render_security_test_section,
     render_simulate_failure_toggle,
-    render_trace_link
+    render_trace_link,
+    render_welcome_overlay
 )
 
 
@@ -56,9 +58,26 @@ def main():
         "finds recent news, and drafts personalized outreach emails."
     )
     
+    # Show welcome overlay on first visit
+    render_welcome_overlay()
+    
     # Sidebar metrics
     metrics = token_governor.get_metrics()
     render_metrics_sidebar(metrics)
+    
+    # Get user session ID for rate limiting
+    if "user_session_id" not in st.session_state:
+        import uuid
+        st.session_state.user_session_id = str(uuid.uuid4())
+    
+    user_id = st.session_state.user_session_id
+    
+    # Display user rate limit info in sidebar
+    user_stats = user_rate_limiter.get_user_stats(user_id)
+    st.sidebar.divider()
+    st.sidebar.subheader("👤 Your Usage")
+    st.sidebar.text(f"This minute: {user_stats['requests_this_minute']}/{user_stats['minute_limit']}")
+    st.sidebar.text(f"This hour: {user_stats['requests_this_hour']}/{user_stats['hour_limit']}")
     
     # Simulate failure toggle
     simulate_failure = render_simulate_failure_toggle()
@@ -66,13 +85,19 @@ def main():
     # Main input area
     st.header("Research Target")
     
+    # Check if we have a starter input from welcome overlay and set it
+    if "starter_input" in st.session_state and "research_input" not in st.session_state:
+        st.session_state.research_input = st.session_state.starter_input
+        st.session_state.pop("starter_input")
+    
     col1, col2 = st.columns([3, 1])
     
     with col1:
         user_input = st.text_input(
             "Enter LinkedIn URL or Company Name:",
             placeholder="https://linkedin.com/in/john-doe or Acme Corporation",
-            help="Provide a LinkedIn profile URL or company name to research"
+            help="Provide a LinkedIn profile URL or company name to research",
+            key="research_input"
         )
     
     with col2:
@@ -104,7 +129,13 @@ def main():
     if research_button and user_input:
         st.divider()
         
-        # Validate input first
+        # Check user rate limit first
+        can_proceed_user, user_error = user_rate_limiter.check_rate_limit(user_id)
+        if not can_proceed_user:
+            render_error_message(user_error or "Rate limit exceeded")
+            st.stop()
+        
+        # Validate input
         validation_result = guardrails.validate_input(user_input)
         
         if not validation_result.is_safe:
@@ -113,6 +144,7 @@ def main():
             )
             st.stop()
         
+        # Check global rate limit
         estimated_tokens = max(250, min(1000, len(user_input) * 4))
         can_proceed, wait_time = token_governor.check_rate_limit(
             estimated_tokens=estimated_tokens
@@ -123,6 +155,9 @@ def main():
                 f"Rate limit reached for research input. Please wait {wait_time:.1f} seconds before trying again."
             )
             st.stop()
+        
+        # Record user request
+        user_rate_limiter.record_request(user_id)
         
         # Run workflow with spinner
         result = None

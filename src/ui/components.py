@@ -1,7 +1,7 @@
 """Reusable UI components for Streamlit."""
 
 import streamlit as st
-from typing import Optional
+from typing import Optional, List
 import sys
 from pathlib import Path
 
@@ -11,6 +11,71 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from src.core.rate_limiter import RateLimitMetrics
+
+
+def render_welcome_overlay() -> None:
+    """
+    Render welcome overlay with instructions and prompt starters.
+    Shows on first visit using session state.
+    """
+    # Initialize session state for welcome overlay
+    if "show_welcome" not in st.session_state:
+        st.session_state.show_welcome = True
+    
+    # Show welcome dialog
+    if st.session_state.show_welcome:
+        with st.container():
+            st.markdown("""
+            <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 2rem; border-radius: 10px; margin-bottom: 2rem; box-shadow: 0 4px 6px rgba(0,0,0,0.1);'>
+                <h2 style='color: #ffffff; margin-top: 0; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);'>👋 Welcome to Safe-Growth Lead Researcher!</h2>
+                <p style='font-size: 1.1em; line-height: 1.6; color: #ffffff;'>
+                    This AI-powered agent helps you research leads and generate personalized outreach emails.
+                </p>
+                <h3 style='color: #ffffff; margin-top: 1.5rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);'>🎯 What This Agent Does:</h3>
+                <ul style='font-size: 1em; line-height: 1.8; color: #ffffff;'>
+                    <li><strong>LinkedIn Analysis:</strong> Extracts profile information from LinkedIn URLs</li>
+                    <li><strong>Company Research:</strong> Finds recent news and developments about the company</li>
+                    <li><strong>Industry Insights:</strong> Discovers relevant industry trends and topics</li>
+                    <li><strong>Email Generation:</strong> Creates personalized outreach emails based on research</li>
+                </ul>
+                <h3 style='color: #ffffff; margin-top: 1.5rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.2);'>🚀 Try These Examples:</h3>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Prompt starters in columns
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.button("🏢 Research a Tech Company", use_container_width=True, key="starter1"):
+                    st.session_state.starter_input = "Google"
+                    st.session_state.show_welcome = False
+                    st.rerun()
+                
+                if st.button("💼 Analyze a LinkedIn Profile", use_container_width=True, key="starter2"):
+                    st.session_state.starter_input = "https://linkedin.com/in/satyanadella"
+                    st.session_state.show_welcome = False
+                    st.rerun()
+            
+            with col2:
+                if st.button("🚀 Research a Startup", use_container_width=True, key="starter3"):
+                    st.session_state.starter_input = "OpenAI"
+                    st.session_state.show_welcome = False
+                    st.rerun()
+                
+                if st.button("🎓 Explore an Educational Institution", use_container_width=True, key="starter4"):
+                    st.session_state.starter_input = "Stanford University"
+                    st.session_state.show_welcome = False
+                    st.rerun()
+            
+            st.markdown("---")
+            
+            col_info1, col_info2 = st.columns(2)
+            with col_info1:
+                st.info("ℹ️ **Rate Limits:** 5 requests/minute, 20 requests/hour per user")
+            with col_info2:
+                if st.button("✅ Got it, let's start!", type="primary", use_container_width=True):
+                    st.session_state.show_welcome = False
+                    st.rerun()
 
 
 def render_metrics_sidebar(metrics: RateLimitMetrics) -> None:
