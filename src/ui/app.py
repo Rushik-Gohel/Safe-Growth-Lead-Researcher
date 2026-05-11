@@ -103,7 +103,16 @@ def main():
     with col2:
         st.write("")  # Spacing
         st.write("")  # Spacing
-        research_button = st.button("🚀 Start Research", type="primary", use_container_width=True)
+        col2a, col2b = st.columns(2)
+        with col2a:
+            research_button = st.button("🚀 Start Research", type="primary", use_container_width=True)
+        with col2b:
+            if "research_result" in st.session_state:
+                if st.button("🔄 New Search", use_container_width=True):
+                    # Clear previous results
+                    st.session_state.pop("research_result", None)
+                    st.session_state.pop("clipboard_content", None)
+                    st.rerun()
     
     # Security testing section
     security_test_input = render_security_test_section()
@@ -175,15 +184,21 @@ def main():
                     st.error("No result returned from agent")
                     st.stop()
                 
+                # Store result in session state to persist across reruns
+                st.session_state.research_result = result
+                
             except Exception as e:
                 logger.error(f"Workflow failed: {str(e)}", exc_info=True)
                 st.error(f"❌ Research failed: {str(e)}")
                 with st.expander("Error Details"):
                     st.exception(e)
                 st.stop()
-        
-        # Display results AFTER spinner completes (only if result exists)
+    
+    # Display results from session state (persists across reruns)
+    if "research_result" in st.session_state:
+        result = st.session_state.research_result
         if result:
+            st.divider()
             try:
                 # Performance metrics
                 if result.get("ttft") and result.get("total_time"):

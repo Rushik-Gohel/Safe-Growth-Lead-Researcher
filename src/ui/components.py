@@ -3,6 +3,7 @@
 import streamlit as st
 from typing import Optional, List
 import sys
+import json
 from pathlib import Path
 
 # Add project root to path if not already there
@@ -213,8 +214,63 @@ def render_email_output(email: str) -> None:
     body = '\n'.join(lines[body_start:]).strip()
     st.markdown(body)
     
-    # Copy button
-    st.button("📋 Copy to Clipboard", key="copy_email")
+    # Copy-friendly textarea: browser focus stays in the user-initiated element
+    st.text_area(
+        "Email content",
+        value=email,
+        height=220,
+        key="email_clipboard_area",
+        help="Use Cmd/Ctrl+A then Cmd/Ctrl+C if automatic clipboard access is blocked by the browser."
+    )
+    
+    if st.button("📋 Select Email for Copy", key="copy_email", use_container_width=False):
+        escaped_email = json.dumps(email)
+        st.components.v1.html(
+            f"""
+            <script>
+            const emailContent = {escaped_email};
+            const parentDoc = window.parent.document;
+
+            function showToast(message, backgroundColor) {{
+                const toast = parentDoc.createElement("div");
+                toast.innerText = message;
+                toast.style.position = "fixed";
+                toast.style.top = "20px";
+                toast.style.right = "20px";
+                toast.style.background = backgroundColor;
+                toast.style.color = "white";
+                toast.style.padding = "12px 16px";
+                toast.style.borderRadius = "8px";
+                toast.style.zIndex = "9999";
+                toast.style.boxShadow = "0 4px 12px rgba(0,0,0,0.2)";
+                parentDoc.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 2500);
+            }}
+
+            function selectTextareaFallback() {{
+                const textareas = Array.from(parentDoc.querySelectorAll("textarea"));
+                const target = textareas.find((el) => el.value === emailContent);
+                if (target) {{
+                    target.focus();
+                    target.select();
+                    target.setSelectionRange(0, target.value.length);
+                    showToast("✅ Email selected. Press Cmd/Ctrl+C to copy.", "#2563eb");
+                }} else {{
+                    showToast("❌ Could not find email field for selection.", "#dc2626");
+                }}
+            }}
+
+            try {{
+                navigator.clipboard.writeText(emailContent)
+                    .then(() => showToast("✅ Email copied to clipboard!", "#16a34a"))
+                    .catch(() => selectTextareaFallback());
+            }} catch (error) {{
+                selectTextareaFallback();
+            }}
+            </script>
+            """,
+            height=0,
+        )
 
 
 def render_security_test_section() -> Optional[str]:
