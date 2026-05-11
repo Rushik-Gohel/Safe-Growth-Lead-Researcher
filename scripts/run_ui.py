@@ -21,6 +21,8 @@ if __name__ == "__main__":
     
     app_path = project_root / "src" / "ui" / "app.py"
     
+    port = os.environ.get("PORT", os.environ.get("UI_PORT", "8501"))
+    
     # Run streamlit with proper Python path
     result = subprocess.run([
         sys.executable,
@@ -28,7 +30,7 @@ if __name__ == "__main__":
         "streamlit",
         "run",
         str(app_path),
-        "--server.port=8501",
+        f"--server.port={port}",
         "--server.address=0.0.0.0"
     ], env={**os.environ, 'PYTHONPATH': str(project_root)})
     

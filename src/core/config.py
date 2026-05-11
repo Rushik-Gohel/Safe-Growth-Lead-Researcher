@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     enable_metrics: bool = Field(default=True, description="Enable metrics tracking")
     enable_tracing: bool = Field(default=True, description="Enable execution tracing")
     
+    api_port: int = Field(default=8000, description="API server port")
+    ui_port: int = Field(default=8501, description="UI server port")
+    
     # Security
     max_input_length: int = Field(default=1000, description="Maximum input length")
     enable_guardrails: bool = Field(default=True, description="Enable security guardrails")
