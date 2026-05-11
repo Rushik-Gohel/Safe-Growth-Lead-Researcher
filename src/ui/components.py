@@ -267,4 +267,4 @@ def render_trace_link(trace_url: Optional[str] = None) -> None:
         st.sidebar.divider()
         st.sidebar.markdown(f"[🔗 View Execution Trace]({trace_url})")
 
-# Made with Bob
+

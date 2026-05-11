@@ -405,4 +405,4 @@ class LeadResearchAgent:
 # Global agent instance
 lead_research_agent = LeadResearchAgent()
 
-# Made with Bob
+

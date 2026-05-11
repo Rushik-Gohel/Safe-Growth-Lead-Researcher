@@ -285,4 +285,3 @@ def clear_cache() -> None:
     global_cache.clear()
 
 
-# Made with Bob

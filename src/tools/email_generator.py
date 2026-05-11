@@ -418,4 +418,4 @@ Best regards,
 # Global email generator instance
 email_generator = EmailGenerator()
 
-# Made with Bob
+

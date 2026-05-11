@@ -274,4 +274,4 @@ class LinkedInScraper:
 # Global scraper instance
 linkedin_scraper = LinkedInScraper()
 
-# Made with Bob
+

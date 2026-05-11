@@ -449,4 +449,4 @@ class SearchTools:
 # Global search tools instance
 search_tools = SearchTools()
 
-# Made with Bob
+

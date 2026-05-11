@@ -91,4 +91,4 @@ class StreamingEmailGenerator:
 # Global streaming generator instance
 streaming_generator = StreamingEmailGenerator()
 
-# Made with Bob
+
