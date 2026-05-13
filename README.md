@@ -27,7 +27,7 @@ Built with:
 - **FastAPI**: Backend API server
 - **Streamlit**: Interactive UI with real-time metrics
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed system design.
+See [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed system design.
 
 ## 📋 Prerequisites
 
@@ -325,7 +325,7 @@ MIT License - see LICENSE file for details
 
 For issues and questions:
 - GitHub Issues: [Create an issue](https://github.com/yourusername/safe-growth-researcher/issues)
-- Documentation: [ARCHITECTURE.md](ARCHITECTURE.md)
+- Documentation: [ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ---
 
